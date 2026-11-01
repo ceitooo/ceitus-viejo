@@ -124,11 +124,13 @@ async function ensureLayout(guild, roles) {
       const type = def.voice ? ChannelType.GuildVoice : ChannelType.GuildText;
       let ch = byName(def.name, type) || (def.from && byName(def.from, type));
       if (!ch) {
-        ch = await guild.channels.create({ name: def.name, type, parent: cat.id });
+        ch = await guild.channels.create({ name: def.name, type, parent: cat.id, rtcRegion: def.voice ? "brazil" : undefined });
         console.log("+ canal", def.name);
       } else {
         if (ch.name !== def.name) console.log("~ renombro", ch.name, "→", def.name);
-        await ch.edit({ name: def.name, parent: cat.id, lockPermissions: false });
+        const patch = { name: def.name, parent: cat.id, lockPermissions: false };
+        if (def.voice) patch.rtcRegion = "brazil";
+        await ch.edit(patch);
       }
       if (def.topic && !def.voice) await ch.setTopic(def.topic);
       if (def.readOnly) {
