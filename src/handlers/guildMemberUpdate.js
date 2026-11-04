@@ -4,12 +4,14 @@ const { STAFF_ROLE_ID, HIGHEST_ADMIN_ROLE_ID, CEITO_ROLE_ID, DEVELOPER_ROLE_ID }
 
 const revertingNicknames = new Set();
 
-const STAFF_ROLE_NAMES = /^(staff|ceito|developer|founder|admin|administrador|moderador|pre-staff|dueño|owner)$/i;
+const STAFF_ROLE_NAMES = /^(staff|ceito|developer|founder|co-owner|admin|administrador|moderador|pre-staff|helper|ayudante|dueño|owner)$/i;
 const KNOWN_STAFF_ROLE_IDS = new Set([
   "1339092743569539144", // Staff (Ceitus)
-  "1339092538413551686", // Ceito
+  "1339092538413551686", // Ceito / Founder
+  "1550165621759680592", // Co-Owner
   "1487999355876278452", // Developer
   "1562938605029171332", // Pre-staff
+  "1565222927731789904", // Helper
   STAFF_ROLE_ID,         // 783795046780633089
   HIGHEST_ADMIN_ROLE_ID  // 748613830074171434
 ]);
