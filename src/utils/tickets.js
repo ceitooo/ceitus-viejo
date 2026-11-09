@@ -14,7 +14,8 @@ function slugify(text) {
 function ticketChannelName(label, guildId) {
   return `${slugify(label)}-${String(nextTicketNumber(guildId)).padStart(4, "0")}`;
 }
-const { CEITO_ROLE_ID } = require("./permissions");
+const { CEITO_ROLE_ID, DEVELOPER_ROLE_ID } = require("./permissions");
+const HELPER_ROLE_ID = "1565222927731789904";
 
 const TICKETS_CATEGORY_NAME = "🎫・Tickets";
 const LOGS_CHANNEL_NAME = "📝・ticket-logs";
@@ -22,12 +23,18 @@ const LOGS_CHANNEL_NAME = "📝・ticket-logs";
 function staffRoleIds(guild) {
   const ids = new Set([CEITO_ROLE_ID]);
   for (const role of guild.roles.cache.values()) {
+    if (role.id === DEVELOPER_ROLE_ID || role.id === HELPER_ROLE_ID) continue;
     if (role.permissions.has(PermissionFlagsBits.Administrator) || role.permissions.has(PermissionFlagsBits.ManageGuild)) {
       ids.add(role.id);
     }
   }
   return [...ids].filter((id) => guild.roles.cache.has(id));
 }
+
+const EXCLUDED_TICKET_ROLES = [
+  { id: DEVELOPER_ROLE_ID, deny: [PermissionFlagsBits.ViewChannel] },
+  { id: HELPER_ROLE_ID, deny: [PermissionFlagsBits.ViewChannel] }
+];
 
 // Solo el rol "Staff" y el rol "ceito" — a diferencia de staffRoleIds() (usado para permisos
 // de canal), esto es lo que se menciona en los pings para no molestar a otros roles con
@@ -36,6 +43,8 @@ function pingRoleIds(guild) {
   const ids = new Set([CEITO_ROLE_ID]);
   const staffRole = guild.roles.cache.find((r) => r.name.toLowerCase() === "staff");
   if (staffRole) ids.add(staffRole.id);
+  ids.delete(DEVELOPER_ROLE_ID);
+  ids.delete(HELPER_ROLE_ID);
   return [...ids].filter((id) => guild.roles.cache.has(id));
 }
 
@@ -78,6 +87,7 @@ async function getOrCreateTicketsCategory(guild) {
         PermissionFlagsBits.ReadMessageHistory
       ]
     },
+    ...EXCLUDED_TICKET_ROLES,
     ...staffRoleIds(guild).map((id) => ({
       id,
       allow: [
@@ -110,6 +120,7 @@ async function getOrCreateLogsChannel(guild) {
 
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    ...EXCLUDED_TICKET_ROLES,
     ...staffRoleIds(guild).map((id) => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] }))
   ];
 
@@ -127,6 +138,7 @@ async function createProductTicket(guild, member, product) {
 
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    ...EXCLUDED_TICKET_ROLES,
     ...staffRoleIds(guild).map((id) => ({
       id,
       allow: [
@@ -213,6 +225,7 @@ async function createSimpleTicket(guild, member, type) {
 
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    ...EXCLUDED_TICKET_ROLES,
     ...staffRoleIds(guild).map((id) => ({
       id,
       allow: [

@@ -9,7 +9,8 @@ const {
   nextTicketNumber
 } = require("../db/database");
 const { getPlan, genRef, buildTicketEmbed, buildTicketButtons } = require("./robloxPanel");
-const { isStaffOrCeito } = require("../utils/permissions");
+const { isStaffOrCeito, DEVELOPER_ROLE_ID } = require("../utils/permissions");
+const HELPER_ROLE_ID = "1565222927731789904";
 
 const RESOURCE = "ceitus-roblox";
 const DEFAULT_TICKETS_CATEGORY = "1543089373552185434"; // 🎫・Tickets
@@ -39,6 +40,8 @@ async function openPurchaseTicket(guild, member, planId) {
     parent: category?.id ?? null,
     permissionOverwrites: [
       { id: guild.roles.everyone,   deny:  [PermissionFlagsBits.ViewChannel] },
+      { id: DEVELOPER_ROLE_ID,       deny:  [PermissionFlagsBits.ViewChannel] },
+      { id: HELPER_ROLE_ID,          deny:  [PermissionFlagsBits.ViewChannel] },
       {
         id: member.id,
         allow: [
