@@ -2,8 +2,6 @@ require("dotenv").config();
 const fs = require("node:fs");
 const path = require("node:path");
 const { Client, Collection, GatewayIntentBits } = require("discord.js");
-const { startIpnServer, setClient: setIpnClient } = require("./sales/paypalIpn");
-const { startRobloxChecker, setCheckerClient } = require("./sales/robloxChecker");
 const { startStreamChecker } = require("./streams/checker");
 const { startVouchChecker } = require("./sales/ceitotweaksVouchChecker");
 
@@ -36,10 +34,6 @@ for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith(".js"))) 
   }
 }
 
-setIpnClient(client);
-startIpnServer();
-setCheckerClient(client);
-startRobloxChecker();
 startStreamChecker(client);
 startVouchChecker(client);
 client.login(process.env.DISCORD_TOKEN);

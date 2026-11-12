@@ -1,76 +1,21 @@
-# CS2 Matchmaking Bot
+# Ceitus
 
-Bot de Discord para armar partidas 5v5 estilo CS2: cola, panel con botones, balanceo por ELO, canales de voz temporales y vinculación con Steam para evitar cuentas falsas.
+Bot de Discord del servidor de CeitoTweaks.
+
+## Qué hace
+
+- **Moderación y seguridad:** `/warn`, `/jail`, `/purga`, `/lock` y `/unlock`, `/slowmode`, `/blacklist`, `/antiraid` y `/seguridad`, más anti-nuke, filtro de estafas y bloqueo de bots agregados de golpe.
+- **Comunidad:** bienvenidas, boosts, niveles y roles por nivel (`/rank`, `/nivelrol`), perfiles, invitaciones (`/misinvitaciones`), sorteos (`/sorteo`), recordatorios y mensajes fijos.
+- **CeitoTweaks:** `/ceitotweaksupdate` y `/changelog` para anunciar versiones, `/milicencia`, `/faq`, la tienda (`/tienda`), el stock y las keys (`/stock`, `/regenerarstock`, `/eliminarkey`, `/vaciarstock`, `/probarkey`) y el chequeo de reseñas.
+- **Streams:** avisa cuando alguien del servidor sale en vivo (`/stream`).
+- **Diversión:** imágenes y GIFs (`/petpet`, `/deepfry`, `/magik`, `/wanted`, `/wasted`, `/rip`, `/triggered`, `/rainbow`, `/shipeo`) y reacciones (`/hug`, `/pat`, `/kiss`, `/slap`), además de `/8ball`, `/dado`, `/moneda`, `/spin`, `/aura`, `/cat` y `/traducir`.
 
 ## Configuración
 
-### 1. Crear la app de Discord
-1. Ve a https://discord.com/developers/applications → New Application
-2. En **Bot**, crea el bot y copia el **Token**
-3. En **OAuth2 → URL Generator**, marca `bot` y `applications.commands`, y permisos: Manage Channels, Manage Roles, Send Messages, Embed Links, Connect. Usa esa URL para invitarlo a tu server.
-4. Copia el **Application ID** (Client ID) desde General Information.
+1. Copiá `.env.example` a `.env` y completalo.
+2. `npm install`
+3. `npm start` — al arrancar, el bot registra solo sus comandos de barra.
 
-### 2. Steam API Key
-1. Entra a https://steamcommunity.com/dev/apikey (necesitas tener Steam Guard activo)
-2. Registra un dominio (puede ser `localhost` para pruebas)
-3. Copia la key
+`npm run deploy-commands` registra los comandos sin arrancar el bot.
 
-### 3. Variables de entorno
-Copia `.env.example` a `.env` y rellena:
-
-```
-DISCORD_TOKEN=...
-CLIENT_ID=...
-GUILD_ID=...          # id de tu servidor, para que los comandos aparezcan al instante
-STEAM_API_KEY=...
-STEAM_AUTH_PORT=3000
-PUBLIC_URL=http://localhost:3000   # o tu túnel/dominio público
-```
-
-> `PUBLIC_URL` debe ser accesible desde el navegador del jugador para que Steam pueda redirigir de vuelta. En local puedes usar [ngrok](https://ngrok.com/): `ngrok http 3000` y poner esa URL https en `PUBLIC_URL`.
-
-### 4. Instalar y correr
-
-```bash
-npm install
-npm run deploy-commands
-npm start
-```
-
-## Uso
-
-- `/panel` (admin) — publica el panel de matchmaking con botones Unirse / Salir / Mis stats
-- `/vincular-steam` — el jugador vincula su cuenta de Steam (requerido para poder unirse a la cola)
-- `/stats [jugador]` — ELO, winrate y stats públicas de CS2 vía Steam
-- `/resultado partida_id ganador` (admin) — confirma el ganador, ajusta ELO y borra los canales de la partida
-
-## Cómo funciona
-
-1. Los jugadores se vinculan una vez con Steam (login real, no falsificable).
-2. Se unen a la cola desde el panel. Al llegar a 10 jugadores, el bot arma dos equipos balanceados por ELO, crea una categoría con 2 canales de voz privados + 1 canal de texto, y publica el resumen de la partida.
-3. Juegan la partida en su servidor CS2 (asignación manual de servidor, esta versión no reserva servidores dedicados).
-4. Un admin cierra la partida con `/resultado`, se recalcula el ELO de todos los jugadores y se limpian los canales temporales.
-
-## Notas
-
-- La base de datos es SQLite local (`data/matchmaking.db`), usando el módulo nativo `node:sqlite` (requiere Node 22.5+, sin compilación).
-- El tamaño de cola (10 jugadores) se puede cambiar en `src/utils/matchmaking.js` (`QUEUE_SIZE`).
-- Las stats de CS2 vía Steam Web API solo se muestran si el perfil del jugador es público.
-
-## Notificaciones de directos (Twitch, YouTube, Kick, TikTok)
-
-Comando `/stream` (solo staff):
-- `/stream añadir plataforma usuario canal [rol] [mensaje]` — el mensaje admite `{user}`, `{platform}`, `{link}` (directo), `{perfil}` (perfil). En `usuario` se puede pegar el link del perfil
-- `/stream quitar`, `/stream lista`, `/stream probar`
-
-El bot revisa cada minuto (TikTok cada ~3 min). YouTube avisa directos y videos nuevos. YouTube y TikTok no necesitan claves.
-
-Variables necesarias en el `.env` / panel del hosting:
-```
-TWITCH_CLIENT_ID=
-TWITCH_CLIENT_SECRET=
-KICK_CLIENT_ID=
-KICK_CLIENT_SECRET=
-```
-- **Twitch:** https://dev.twitch.tv/console → Registrar aplicación (redirect `http://localhost`, cliente Confidencial) → Administrar → copiar ID y "Nuevo secreto".
-- **Kick:** https://kick.com/settings/developer → Create new app (redirect `http://localhost`) → copiar Client ID y Secret.
+Los datos (niveles, stock, sorteos…) se guardan en SQLite dentro de `data/`.

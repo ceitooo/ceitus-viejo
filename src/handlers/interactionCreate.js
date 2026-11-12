@@ -17,11 +17,6 @@ const { createAllianceTicket, createSupportTicket, createProductTicket, closeTic
 const { isStaffOrCeito, isCommandBlockedHelpOnly, isMemberAuthorizedInSpecialGuild } = require("../utils/permissions");
 const { pickWinners } = require("../utils/giveawayChecker");
 const { refreshStockPanel } = require("../commands/stock");
-const {
-  openPurchaseTicket,
-  handleDeliverKey,
-  handleCloseTicket: closeRobloxTicket
-} = require("../sales/robloxTickets");
 
 const LOW_STOCK_THRESHOLD = 2;
 
@@ -379,27 +374,6 @@ async function _handle(interaction) {
       await closeTicket(interaction.channel, interaction.user);
       await interaction.channel.delete().catch(() => {});
       return;
-    }
-
-    // ── Ceitus Roblox — panel de ventas ──────────────────────────────────────
-    if (interaction.isStringSelectMenu() && interaction.customId === "roblox_select_plan") {
-      const planId = interaction.values[0].replace("roblox_plan_", "");
-      await interaction.deferReply({ flags: 64 });
-      const result = await openPurchaseTicket(interaction.guild, interaction.member, planId).catch((e) => {
-        console.error("[roblox-ticket] Error abriendo ticket:", e);
-        return null;
-      });
-      if (!result) return interaction.editReply({ content: "❌ No pude crear el ticket. Avisale al staff." });
-      return interaction.editReply({ content: result.created ? `✅ Ticket creado: ${result.channel}` : `Ya tenés un ticket abierto: ${result.channel}` });
-    }
-
-    if (interaction.isButton() && interaction.customId.startsWith("roblox_deliver:")) {
-      const parts = interaction.customId.split(":");
-      return handleDeliverKey(interaction, parts[1], parts[2]);
-    }
-
-    if (interaction.isButton() && interaction.customId === "roblox_close_ticket") {
-      return closeRobloxTicket(interaction);
     }
 }
 

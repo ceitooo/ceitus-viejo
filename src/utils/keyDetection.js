@@ -1,4 +1,4 @@
-// Ej: CEITUSROBLOX-ROJB-Q3DZ-61PE-5RU3 (prefijo del recurso + 4 bloques de 4
+// Ej: CEITOTWEAKS-ROJB-Q3DZ-61PE-5RU3 (prefijo del recurso + 4 bloques de 4
 // caracteres). Sin \b al inicio/final a propósito: así también corta keys
 // pegadas sin espacio entre ellas (el guion después del prefijo ya marca el
 // límite).
@@ -8,8 +8,6 @@ const KEY_REGEX = /[A-Z][A-Z0-9]{1,19}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0
 // prefijo de la key no está acá, se cae al comportamiento genérico
 // (primera letra mayúscula, resto minúscula).
 const RESOURCE_PREFIX_MAP = {
-  CEITUSROBLOX: "Ceitus Roblox",
-  CEITUSCS2: "Ceitus Counter Strike 2",
   DISNEYPREMIUM: "Disney Premium",
   NETFLIX: "Netflix",
   CEITOTWEAKS: "CeitoTweaks"

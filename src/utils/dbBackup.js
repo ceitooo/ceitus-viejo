@@ -14,7 +14,7 @@ async function backupGuild(guild) {
   // y el .db principal puede estar casi vacío hasta que se hace este checkpoint.
   db.exec("PRAGMA wal_checkpoint(TRUNCATE);");
 
-  const attachment = new AttachmentBuilder(dbPath, { name: `matchmaking-${new Date().toISOString().slice(0, 10)}.db` });
+  const attachment = new AttachmentBuilder(dbPath, { name: `ceitus-${new Date().toISOString().slice(0, 10)}.db` });
   await channel.send({ content: `🗄️ Backup automático de la base de datos.`, files: [attachment] }).catch((e) => console.error("[backup] Error:", e.message));
 }
 

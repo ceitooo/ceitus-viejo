@@ -18,8 +18,8 @@ module.exports = {
     .addSubcommand((sub) =>
       sub
         .setName("keys")
-        .setDescription("Carga keys/códigos (ej: Ceitus Roblox, CeitoTweaks)")
-        .addStringOption((o) => o.setName("recurso").setDescription("Nombre del recurso (ej: Ceitus Roblox)").setRequired(true))
+        .setDescription("Carga keys/códigos (ej: CeitoTweaks)")
+        .addStringOption((o) => o.setName("recurso").setDescription("Nombre del recurso (ej: CeitoTweaks)").setRequired(true))
         .addStringOption((o) => o.setName("keys").setDescription("Las keys a cargar, en cualquier formato/separador").setRequired(true))
     )
     .addSubcommand((sub) =>

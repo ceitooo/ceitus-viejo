@@ -5,14 +5,11 @@ const { REST, Routes } = require("discord.js");
 
 // Debe coincidir con la lista en src/handlers/ready.js
 const CEITUS_ONLY_COMMANDS = new Set([
-  "generarkeyceitusroblox",
   "regenerarstock",
   "eliminarkey",
   "vaciarstock",
   "stock",
   "tienda",
-  "roblox-ventas",
-  "onceitusroblox",
   "misinvitaciones",
   "probarboost",
   "probarkey"

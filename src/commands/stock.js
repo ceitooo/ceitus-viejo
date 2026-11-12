@@ -56,7 +56,7 @@ module.exports = {
       sub
         .setName("requisito")
         .setDescription("Cambia el texto de requisito que se muestra para un recurso")
-        .addStringOption((o) => o.setName("recurso").setDescription("Nombre exacto del recurso (ej: Ceitus Roblox)").setRequired(true))
+        .addStringOption((o) => o.setName("recurso").setDescription("Nombre exacto del recurso (ej: CeitoTweaks)").setRequired(true))
         .addStringOption((o) => o.setName("texto").setDescription("Requisito a mostrar (ej: 10 invitaciones)").setRequired(true))
     )
     .addSubcommand((sub) =>

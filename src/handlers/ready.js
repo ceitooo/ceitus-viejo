@@ -14,7 +14,6 @@ const path = require("path");
 // sorteos, niveles, bienvenida/boost...): solo deben existir en el server
 // de Ceitus, no tiene sentido que aparezcan en otros servers del bot.
 const CEITUS_ONLY_COMMANDS = new Set([
-  "generarkeyceitusroblox",
   "regenerarstock",
   "eliminarkey",
   "vaciarstock",

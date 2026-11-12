@@ -796,35 +796,9 @@ function claimKey(guildId, resource, userId) {
   return key;
 }
 
-function createRobloxTicket(guildId, channelId, userId, plan, priceUsd) {
-  db.prepare(
-    "INSERT INTO roblox_tickets (guild_id, channel_id, user_id, plan, price_usd, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(guildId, channelId, userId, plan, priceUsd, Date.now());
-  return db.prepare("SELECT * FROM roblox_tickets WHERE channel_id = ?").get(channelId);
-}
-
-function getRobloxTicketByChannel(channelId) {
-  return db.prepare("SELECT * FROM roblox_tickets WHERE channel_id = ?").get(channelId);
-}
-
-function getRobloxTicketByRef(ref) {
-  return db.prepare("SELECT * FROM roblox_tickets WHERE mp_reference = ?").get(ref);
-}
-
-function updateRobloxTicket(channelId, fields) {
-  const columns = Object.keys(fields);
-  if (columns.length === 0) return;
-  const set = columns.map((c) => `${c} = ?`).join(", ");
-  db.prepare(`UPDATE roblox_tickets SET ${set} WHERE channel_id = ?`).run(...columns.map((c) => fields[c]), channelId);
-}
-
 module.exports = {
   db,
   dbPath,
-  createRobloxTicket,
-  getRobloxTicketByChannel,
-  getRobloxTicketByRef,
-  updateRobloxTicket,
   countActiveSubscriptions,
   addGiveaway,
   getActiveGiveawaysDue,
