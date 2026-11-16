@@ -34,6 +34,11 @@ const SPAM_MAX_MESSAGES = 5;
 const MUTE_DURATION_MS = 60 * 1000;
 const LOCKOUT_MS = 5 * 60 * 1000;
 
+// Canales donde está permitido hacer spam (se ignora el automod de spam)
+const SPAM_ALLOWED_CHANNELS = new Set([
+  "1571556025343938641"
+]);
+
 const recentMessages = new Map(); // `${guildId}:${userId}` -> timestamps[]
 const stickyLock = new Set(); // Previene carreras de concurrencia por canal
 
@@ -366,6 +371,8 @@ module.exports = {
     await handleScamProtection(message, settings);
     await handleXp(message);
     await handleAfk(message);
+
+    if (SPAM_ALLOWED_CHANNELS.has(message.channelId)) return;
 
     if (!settings.automod_enabled) return;
     if (isStaffOrCeito({ member: message.member, memberPermissions: message.member?.permissions })) return;
