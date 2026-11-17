@@ -372,7 +372,7 @@ module.exports = {
     await handleXp(message);
     await handleAfk(message);
 
-    if (SPAM_ALLOWED_CHANNELS.has(message.channelId)) return;
+    if (SPAM_ALLOWED_CHANNELS.has(message.channelId) || (message.channel?.parentId && SPAM_ALLOWED_CHANNELS.has(message.channel.parentId))) return;
 
     if (!settings.automod_enabled) return;
     if (isStaffOrCeito({ member: message.member, memberPermissions: message.member?.permissions })) return;
