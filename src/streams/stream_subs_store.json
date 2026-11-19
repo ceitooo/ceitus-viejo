@@ -25,5 +25,14 @@
     "role_id": "1339103137901969439",
     "message": "{user} está en directo en {platform}! Pasate al directo: {link}",
     "created_by": "system"
+  },
+  {
+    "guild_id": "1544716660559192106",
+    "platform": "tiktok",
+    "username": "jugluc",
+    "channel_id": "1544723106503983225",
+    "role_id": "1553650801577033779",
+    "message": "{user} está en directo en {platform}! Vengan a acompañarla 💗 {link}",
+    "created_by": "system"
   }
 ]

@@ -194,11 +194,7 @@ async function runCheck() {
         db.prepare("UPDATE stream_subs SET last_live_id = NULL WHERE id = ?").run(sub.id);
       }
 
-      if (res.video && res.video.id !== sub.last_video_id) {
-        db.prepare("UPDATE stream_subs SET last_video_id = ? WHERE id = ?").run(res.video.id, sub.id);
-        console.log(`[streams] Nuevo video de ${sub.username} (${sub.platform}). Enviando aviso a canal ${sub.channel_id}...`);
-        await send(sub, buildVideoMessage(sub, res));
-      }
+      // Avisos de videos subidos desactivados: solo se avisa de directos
     } catch (e) {
       console.error(`[streams] Error comprobando ${sub.platform}/${sub.username}:`, e.message);
     }
@@ -232,6 +228,15 @@ function seedDefaultSubs() {
       channelId: "1564345529163456523",
       roleId: "1339103137901969439",
       message: "{user} está en directo en {platform}! Pasate al directo: {link}",
+      createdBy: "system"
+    },
+    {
+      guildId: "1544716660559192106",
+      platform: "tiktok",
+      username: "jugluc",
+      channelId: "1544723106503983225",
+      roleId: "1553650801577033779",
+      message: "{user} está en directo en {platform}! Vengan a acompañarla 💗 {link}",
       createdBy: "system"
     }
   ];

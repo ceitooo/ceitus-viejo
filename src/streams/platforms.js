@@ -219,9 +219,10 @@ async function checkYoutube(username) {
   // Directo: la ruta /live redirige al video en directo si lo hay
   let live = null;
   const liveHtml = await fetchText(`https://www.youtube.com/channel/${channelId}/live`, ytConsent).catch(() => "");
-  if (/"isLiveNow":true/.test(liveHtml) || /"isLive":true/.test(liveHtml)) {
-    const videoId = liveHtml.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/)?.[1] ||
-                    liveHtml.match(/"videoId":"([\w-]{11})"/)?.[1];
+  // Solo es directo si la página redirige a un watch?v= (canonical) y está marcado como live ahora
+  const canonicalId = liveHtml.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/)?.[1];
+  if (canonicalId && /"isLiveNow":true/.test(liveHtml)) {
+    const videoId = canonicalId;
     if (videoId) {
       const title = liveHtml.match(/<meta name="title" content="([^"]*)"/)?.[1];
       live = {

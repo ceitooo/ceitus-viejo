@@ -97,7 +97,7 @@ module.exports = {
         lastVideoId: result.video?.id,
         createdBy: interaction.user.id
       });
-      const extra = platform === "youtube" ? " y cuando suba un video nuevo" : "";
+      const extra = "";
       const estado = result.live ? `\n🔴 *¡Actualmente está en directo! Se envió el aviso a ${channel}.*` : "";
 
       if (result.live) {
@@ -130,7 +130,6 @@ module.exports = {
         live: result.live ?? { id: "test", title: "Directo de prueba", category: "Just Chatting", viewers: 0, thumbnail: null, url: p.profile(username) }
       };
       await channel.send(buildLiveMessage({ ...s, role_id: null }, fake, { test: true }));
-      if (platform === "youtube" && result.video) await channel.send(buildVideoMessage({ ...s, role_id: null }, result));
       return interaction.editReply(`✅ Aviso de prueba enviado en ${channel} (sin mencionar el rol).`);
     }
   }
