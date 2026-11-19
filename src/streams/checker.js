@@ -1,5 +1,7 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { db } = require("../db/database");
+const { db, getGuildApiKeys } = require("../db/database");
 const { PLATFORMS } = require("./platforms");
 
 db.exec(`
@@ -18,25 +20,74 @@ CREATE TABLE IF NOT EXISTS stream_subs (
 );
 `);
 
+const STORE_PATH = path.join(__dirname, "stream_subs_store.json");
 const INTERVAL_MS = 60_000;
-const TIKTOK_EVERY = 3; // TikTok cada 3 vueltas (~3 min) para no ser bloqueados
+const TIKTOK_EVERY = 3; // TikTok cada 3 vueltas (~3 min)
 let tick = 0;
 let client = null;
 
-function addSub(fields) {
+function saveStore() {
+  try {
+    const all = db.prepare("SELECT guild_id, platform, username, channel_id, role_id, message, created_by FROM stream_subs").all();
+    fs.writeFileSync(STORE_PATH, JSON.stringify(all, null, 2), "utf8");
+  } catch (e) {
+    console.warn("[streams] Error guardando stream_subs_store.json:", e.message);
+  }
+}
+
+function loadStore() {
+  try {
+    if (fs.existsSync(STORE_PATH)) {
+      const data = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          addSub(
+            {
+              guildId: item.guild_id || item.guildId,
+              platform: item.platform,
+              username: item.username,
+              channelId: item.channel_id || item.channelId,
+              roleId: item.role_id || item.roleId,
+              message: item.message,
+              createdBy: item.created_by || item.createdBy || "store"
+            },
+            { syncStore: false }
+          );
+        }
+        console.log(`[streams] ${data.length} suscripciones cargadas desde store persistente.`);
+      }
+    }
+  } catch (e) {
+    console.warn("[streams] Error cargando stream_subs_store.json:", e.message);
+  }
+}
+
+function addSub(fields, { syncStore = true } = {}) {
   db.prepare(
     `INSERT INTO stream_subs (guild_id, platform, username, channel_id, role_id, message, last_live_id, last_video_id, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (guild_id, platform, username) DO UPDATE SET
        channel_id = excluded.channel_id, role_id = excluded.role_id, message = excluded.message`
   ).run(
-    fields.guildId, fields.platform, fields.username, fields.channelId, fields.roleId ?? null,
-    fields.message ?? null, fields.lastLiveId ?? null, fields.lastVideoId ?? null, fields.createdBy
+    fields.guildId,
+    fields.platform,
+    fields.username,
+    fields.channelId,
+    fields.roleId ?? null,
+    fields.message ?? null,
+    fields.lastLiveId ?? null,
+    fields.lastVideoId ?? null,
+    fields.createdBy
   );
+  if (syncStore) saveStore();
 }
 
 function removeSub(guildId, platform, username) {
-  return db.prepare("DELETE FROM stream_subs WHERE guild_id = ? AND platform = ? AND username = ?").run(guildId, platform, username).changes;
+  const changes = db
+    .prepare("DELETE FROM stream_subs WHERE guild_id = ? AND platform = ? AND username = ?")
+    .run(guildId, platform, username).changes;
+  if (changes > 0) saveStore();
+  return changes;
 }
 
 function listSubs(guildId) {
@@ -53,6 +104,7 @@ function buildLiveMessage(sub, result, { test = false } = {}) {
     .setTitle(live.title || "En directo")
     .setURL(live.url)
     .setTimestamp();
+
   if (live.category) embed.addFields({ name: "🎮 Categoría", value: live.category, inline: true });
   if (live.viewers != null) embed.addFields({ name: "👀 Espectadores", value: String(live.viewers), inline: true });
   if (live.thumbnail) embed.setImage(live.thumbnail);
@@ -61,9 +113,20 @@ function buildLiveMessage(sub, result, { test = false } = {}) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Ver directo").setURL(live.url)
   );
+
   const mention = sub.role_id ? (sub.role_id === sub.guild_id ? "@everyone " : `<@&${sub.role_id}> `) : "";
-  const text = (sub.message || "{user} está en directo en {platform}!").replace(/{user}/g, name).replace(/{platform}/g, p.name).replace(/{link}/g, live.url).replace(/{perfil}/g, p.profile(sub.username));
-  return { content: `${mention}${p.emoji} ${text}`, embeds: [embed], components: [row], allowedMentions: { parse: ["roles", "everyone"] } };
+  const text = (sub.message || "{user} está en directo en {platform}! Pasate al directo: {link}")
+    .replace(/\{user\}/g, name)
+    .replace(/\{platform\}/g, p.name)
+    .replace(/\{link\}/g, live.url)
+    .replace(/\{perfil\}/g, p.profile(sub.username));
+
+  return {
+    content: `${mention}${p.emoji} ${text}`,
+    embeds: [embed],
+    components: [row],
+    allowedMentions: { parse: ["roles", "everyone"] }
+  };
 }
 
 function buildVideoMessage(sub, result) {
@@ -72,17 +135,27 @@ function buildVideoMessage(sub, result) {
   const name = result.displayName || sub.username;
   const embed = new EmbedBuilder()
     .setColor(p.color)
-    .setAuthor({ name: `${name} subió un nuevo video` })
+    .setAuthor({ name: `${name} subió un nuevo video`, iconURL: result.avatar || undefined, url: v.url })
     .setTitle(v.title || "Nuevo video")
     .setURL(v.url)
     .setImage(v.thumbnail)
     .setTimestamp();
-  const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Ver video").setURL(v.url));
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Ver video").setURL(v.url)
+  );
+
   const mention = sub.role_id ? (sub.role_id === sub.guild_id ? "@everyone " : `<@&${sub.role_id}> `) : "";
-  return { content: `${mention}📺 ¡Nuevo video de **${name}**!`, embeds: [embed], components: [row], allowedMentions: { parse: ["roles", "everyone"] } };
+  return {
+    content: `${mention}📺 ¡Nuevo video de **${name}**!`,
+    embeds: [embed],
+    components: [row],
+    allowedMentions: { parse: ["roles", "everyone"] }
+  };
 }
 
 async function send(sub, payload) {
+  if (!client) return;
   const channel = await client.channels.fetch(sub.channel_id).catch(() => null);
   if (!channel?.isTextBased()) return;
   await channel.send(payload).catch((e) => console.error(`[streams] No se pudo enviar en ${sub.channel_id}:`, e.message));
@@ -90,38 +163,109 @@ async function send(sub, payload) {
 
 async function runCheck() {
   tick++;
-  const subs = db.prepare("SELECT * FROM stream_subs").all();
-  const cache = new Map(); // una consulta por cuenta aunque esté en varios servers
+  let subs;
+  try {
+    subs = db.prepare("SELECT * FROM stream_subs").all();
+  } catch (e) {
+    return;
+  }
+  if (!subs || !subs.length) return;
+  const cache = new Map();
 
   for (const sub of subs) {
     if (sub.platform === "tiktok" && tick % TIKTOK_EVERY !== 1) continue;
-    const key = `${sub.platform}:${sub.username}`;
+    const creds = sub.guild_id ? getGuildApiKeys(sub.guild_id)?.[sub.platform] : null;
+    const clientId = creds?.clientId || "default";
+    const key = `${sub.platform}:${sub.username}:${clientId}`;
     try {
-      if (!cache.has(key)) cache.set(key, PLATFORMS[sub.platform].check(sub.username));
-      const result = await cache.get(key);
-      if (result.notFound) continue;
-
-      if (result.live && result.live.id !== sub.last_live_id) {
-        db.prepare("UPDATE stream_subs SET last_live_id = ? WHERE id = ?").run(result.live.id, sub.id);
-        await send(sub, buildLiveMessage(sub, result));
+      if (!cache.has(key)) {
+        const pObj = PLATFORMS[sub.platform];
+        if (!pObj) continue;
+        cache.set(key, pObj.check(sub.username, creds));
       }
-      // Videos (YouTube). Si el "video" es el mismo directo ya avisado, no se repite.
-      if (result.video && result.video.id !== sub.last_video_id) {
-        db.prepare("UPDATE stream_subs SET last_video_id = ? WHERE id = ?").run(result.video.id, sub.id);
-        const isTheLive = result.video.id === (result.live?.id ?? sub.last_live_id);
-        if (sub.last_video_id && !isTheLive) await send(sub, buildVideoMessage(sub, result));
+      const res = await cache.get(key);
+      if (!res || res.notFound) continue;
+
+      if (res.live && res.live.id !== sub.last_live_id) {
+        db.prepare("UPDATE stream_subs SET last_live_id = ? WHERE id = ?").run(res.live.id, sub.id);
+        console.log(`[streams] ${sub.username} (${sub.platform}) está en directo. Enviando aviso a canal ${sub.channel_id}...`);
+        await send(sub, buildLiveMessage(sub, res));
+      } else if (!res.live && sub.last_live_id) {
+        db.prepare("UPDATE stream_subs SET last_live_id = NULL WHERE id = ?").run(sub.id);
+      }
+
+      if (res.video && res.video.id !== sub.last_video_id) {
+        db.prepare("UPDATE stream_subs SET last_video_id = ? WHERE id = ?").run(res.video.id, sub.id);
+        console.log(`[streams] Nuevo video de ${sub.username} (${sub.platform}). Enviando aviso a canal ${sub.channel_id}...`);
+        await send(sub, buildVideoMessage(sub, res));
       }
     } catch (e) {
-      console.error(`[streams] Error revisando ${key}:`, e.message);
+      console.error(`[streams] Error comprobando ${sub.platform}/${sub.username}:`, e.message);
     }
   }
 }
 
-function startStreamChecker(discordClient) {
-  client = discordClient;
-  const loop = () => runCheck().catch((e) => console.error("[streams]", e)).finally(() => setTimeout(loop, INTERVAL_MS));
-  setTimeout(loop, 15_000);
-  console.log("[streams] Notificaciones de directos activas.");
+function seedDefaultSubs() {
+  const defaults = [
+    {
+      guildId: "1339090100424019978",
+      platform: "tiktok",
+      username: "ceitotweaks",
+      channelId: "1564345529163456523",
+      roleId: "1339103137901969439",
+      message: "{user} está en directo en {platform}! Pasate al directo: {link}",
+      createdBy: "system"
+    },
+    {
+      guildId: "1339090100424019978",
+      platform: "youtube",
+      username: "@ceitotweaks",
+      channelId: "1564345529163456523",
+      roleId: "1339103137901969439",
+      message: "{user} está en directo en {platform}! Pasate al directo: {link}",
+      createdBy: "system"
+    },
+    {
+      guildId: "1339090100424019978",
+      platform: "twitch",
+      username: "ceitooo",
+      channelId: "1564345529163456523",
+      roleId: "1339103137901969439",
+      message: "{user} está en directo en {platform}! Pasate al directo: {link}",
+      createdBy: "system"
+    }
+  ];
+
+  for (const item of defaults) {
+    try {
+      const existing = db.prepare("SELECT id FROM stream_subs WHERE guild_id = ? AND platform = ? AND username = ?").get(
+        item.guildId,
+        item.platform,
+        item.username
+      );
+      if (!existing) {
+        addSub(item, { syncStore: false });
+        console.log(`[streams] Suscripción por defecto sembrada: ${item.platform}/${item.username}`);
+      }
+    } catch (e) {
+      console.warn(`[streams] Error sembrando sub por defecto (${item.platform}/${item.username}):`, e.message);
+    }
+  }
 }
 
-module.exports = { startStreamChecker, addSub, removeSub, listSubs, buildLiveMessage, buildVideoMessage };
+function startStreamChecker(c) {
+  client = c;
+  loadStore();
+  seedDefaultSubs();
+  setInterval(runCheck, INTERVAL_MS);
+  setTimeout(runCheck, 5_000); // Primer chequeo 5s tras arrancar
+}
+
+module.exports = {
+  addSub,
+  removeSub,
+  listSubs,
+  buildLiveMessage,
+  buildVideoMessage,
+  startStreamChecker
+};

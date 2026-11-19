@@ -1,0 +1,29 @@
+[
+  {
+    "guild_id": "1339090100424019978",
+    "platform": "tiktok",
+    "username": "ceitotweaks",
+    "channel_id": "1564345529163456523",
+    "role_id": "1339103137901969439",
+    "message": "{user} está en directo en {platform}! Pasate al directo: {link}",
+    "created_by": "system"
+  },
+  {
+    "guild_id": "1339090100424019978",
+    "platform": "youtube",
+    "username": "@ceitotweaks",
+    "channel_id": "1564345529163456523",
+    "role_id": "1339103137901969439",
+    "message": "{user} está en directo en {platform}! Pasate al directo: {link}",
+    "created_by": "system"
+  },
+  {
+    "guild_id": "1339090100424019978",
+    "platform": "twitch",
+    "username": "ceitooo",
+    "channel_id": "1564345529163456523",
+    "role_id": "1339103137901969439",
+    "message": "{user} está en directo en {platform}! Pasate al directo: {link}",
+    "created_by": "system"
+  }
+]

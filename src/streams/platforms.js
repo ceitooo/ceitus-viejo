@@ -26,71 +26,169 @@ async function getAppToken(key, tokenUrl, clientId, clientSecret) {
 }
 
 // ── Twitch ──────────────────────────────────────────────────────────────────
-async function twitchGet(path) {
-  const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET } = process.env;
-  if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) throw new Error("Faltan TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET en el .env");
-  const token = await getAppToken("twitch", "https://id.twitch.tv/oauth2/token", TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET);
-  const res = await fetch(`https://api.twitch.tv/helix/${path}`, {
-    headers: { "Client-Id": TWITCH_CLIENT_ID, Authorization: `Bearer ${token}` }
+// Fallback público vía GraphQL de Twitch (no requiere API keys ni app registrada)
+async function checkTwitchGQL(username) {
+  const login = username.toLowerCase();
+  const query = JSON.stringify({
+    query: `query {
+      user(login: "${login}") {
+        id
+        displayName
+        profileImageURL(width: 300)
+        stream {
+          id
+          title
+          type
+          viewersCount
+          game { name }
+        }
+      }
+    }`
   });
-  if (res.status === 401) delete tokens.twitch;
+
+  const res = await fetch("https://gql.twitch.tv/gql", {
+    method: "POST",
+    headers: {
+      "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+      "User-Agent": UA
+    },
+    body: query,
+    signal: AbortSignal.timeout(8000)
+  });
+  if (!res.ok) throw new Error(`Twitch GQL HTTP ${res.status}`);
+  const json = await res.json();
+  const user = json.data?.user;
+  if (!user) return { notFound: true };
+  const s = user.stream;
+  return {
+    displayName: user.displayName,
+    avatar: user.profileImageURL,
+    live: s
+      ? {
+          id: String(s.id),
+          title: s.title || "En directo",
+          category: s.game?.name || null,
+          viewers: s.viewersCount ?? 0,
+          thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-1280x720.jpg?t=${Date.now()}`,
+          url: `https://twitch.tv/${login}`
+        }
+      : null
+  };
+}
+
+async function twitchGet(path, customCreds = null) {
+  const clientId = customCreds?.clientId || process.env.TWITCH_CLIENT_ID;
+  const clientSecret = customCreds?.clientSecret || process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  const token = await getAppToken(`twitch:${clientId}`, "https://id.twitch.tv/oauth2/token", clientId, clientSecret);
+  const res = await fetch(`https://api.twitch.tv/helix/${path}`, {
+    headers: { "Client-Id": clientId, Authorization: `Bearer ${token}` }
+  });
+  if (res.status === 401) delete tokens[`twitch:${clientId}`];
   if (!res.ok) throw new Error(`Twitch HTTP ${res.status}`);
   return res.json();
 }
 
-async function checkTwitch(username) {
-  const login = encodeURIComponent(username.toLowerCase());
-  const [{ data: streams }, { data: users }] = await Promise.all([
-    twitchGet(`streams?user_login=${login}`),
-    twitchGet(`users?login=${login}`)
-  ]);
-  const user = users?.[0];
-  if (!user) return { notFound: true };
-  const s = streams?.[0];
+async function checkTwitch(username, customCreds = null) {
+  const clientId = customCreds?.clientId || process.env.TWITCH_CLIENT_ID;
+  const clientSecret = customCreds?.clientSecret || process.env.TWITCH_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    try {
+      const login = encodeURIComponent(username.toLowerCase());
+      const [{ data: streams }, { data: users }] = await Promise.all([
+        twitchGet(`streams?user_login=${login}`, customCreds),
+        twitchGet(`users?login=${login}`, customCreds)
+      ]);
+      const user = users?.[0];
+      if (!user) return { notFound: true };
+      const s = streams?.[0];
+      return {
+        displayName: user.display_name,
+        avatar: user.profile_image_url,
+        live: s
+          ? {
+              id: String(s.id),
+              title: s.title,
+              category: s.game_name,
+              viewers: s.viewer_count,
+              thumbnail: s.thumbnail_url.replace("{width}", "1280").replace("{height}", "720") + `?t=${Date.now()}`,
+              url: `https://twitch.tv/${user.login}`
+            }
+          : null
+      };
+    } catch (e) {
+      console.warn(`[Twitch] Falló API Helix para ${username}, usando fallback público:`, e.message);
+    }
+  }
+  return checkTwitchGQL(username);
+}
+
+// ── Kick ────────────────────────────────────────────────────────────────────
+// Fallback público vía API v2 de Kick (no requiere API keys)
+async function checkKickPublic(username) {
+  const slug = encodeURIComponent(username.toLowerCase());
+  const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(8000)
+  });
+  if (res.status === 404) return { notFound: true };
+  if (!res.ok) throw new Error(`Kick HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data || !data.user) return { notFound: true };
+
+  const s = data.livestream;
   return {
-    displayName: user.display_name,
-    avatar: user.profile_image_url,
+    displayName: data.user?.username || data.slug || username,
+    avatar: data.user?.profile_pic || null,
     live: s
       ? {
-          id: s.id,
-          title: s.title,
-          category: s.game_name,
-          viewers: s.viewer_count,
-          thumbnail: s.thumbnail_url.replace("{width}", "1280").replace("{height}", "720") + `?t=${Date.now()}`,
-          url: `https://twitch.tv/${user.login}`
+          id: String(s.id || s.created_at || Date.now()),
+          title: s.session_title || "En directo en Kick",
+          category: s.categories?.[0]?.name || null,
+          viewers: s.viewer_count ?? 0,
+          thumbnail: s.thumbnail?.url ? `${s.thumbnail.url}?t=${Date.now()}` : null,
+          url: `https://kick.com/${data.slug || username}`
         }
       : null
   };
 }
 
-// ── Kick ────────────────────────────────────────────────────────────────────
-async function checkKick(username) {
-  const { KICK_CLIENT_ID, KICK_CLIENT_SECRET } = process.env;
-  if (!KICK_CLIENT_ID || !KICK_CLIENT_SECRET) throw new Error("Faltan KICK_CLIENT_ID / KICK_CLIENT_SECRET en el .env");
-  const token = await getAppToken("kick", "https://id.kick.com/oauth/token", KICK_CLIENT_ID, KICK_CLIENT_SECRET);
-  const slug = encodeURIComponent(username.toLowerCase());
-  const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${slug}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }
-  });
-  if (res.status === 401) delete tokens.kick;
-  if (!res.ok) throw new Error(`Kick HTTP ${res.status}`);
-  const ch = (await res.json()).data?.[0];
-  if (!ch) return { notFound: true };
-  const s = ch.stream;
-  return {
-    displayName: ch.slug,
-    avatar: null,
-    live: s?.is_live
-      ? {
-          id: s.start_time || `${ch.broadcaster_user_id}-${s.key ?? "live"}`,
-          title: ch.stream_title,
-          category: ch.category?.name,
-          viewers: s.viewer_count,
-          thumbnail: s.thumbnail ? `${s.thumbnail}?t=${Date.now()}` : null,
-          url: `https://kick.com/${ch.slug}`
-        }
-      : null
-  };
+async function checkKick(username, customCreds = null) {
+  const clientId = customCreds?.clientId || process.env.KICK_CLIENT_ID;
+  const clientSecret = customCreds?.clientSecret || process.env.KICK_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    try {
+      const token = await getAppToken(`kick:${clientId}`, "https://id.kick.com/oauth/token", clientId, clientSecret);
+      const slug = encodeURIComponent(username.toLowerCase());
+      const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${slug}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (res.status === 401) delete tokens[`kick:${clientId}`];
+      if (res.ok) {
+        const ch = (await res.json()).data?.[0];
+        if (!ch) return { notFound: true };
+        const s = ch.stream;
+        return {
+          displayName: ch.slug,
+          avatar: null,
+          live: s?.is_live
+            ? {
+                id: String(s.start_time || `${ch.broadcaster_user_id}-${s.key ?? "live"}`),
+                title: ch.stream_title,
+                category: ch.category?.name,
+                viewers: s.viewer_count,
+                thumbnail: s.thumbnail ? `${s.thumbnail}?t=${Date.now()}` : null,
+                url: `https://kick.com/${ch.slug}`
+              }
+            : null
+        };
+      }
+    } catch (e) {
+      console.warn(`[Kick] Falló API oficial para ${username}, usando fallback público:`, e.message);
+    }
+  }
+  return checkKickPublic(username);
 }
 
 // ── YouTube (sin API key: página del canal + RSS) ───────────────────────────
@@ -115,11 +213,15 @@ async function checkYoutube(username) {
   const channelId = await resolveYoutubeChannel(username);
   if (!channelId) return { notFound: true };
 
+  let avatar = null;
+  let displayName = username;
+
   // Directo: la ruta /live redirige al video en directo si lo hay
   let live = null;
   const liveHtml = await fetchText(`https://www.youtube.com/channel/${channelId}/live`, ytConsent).catch(() => "");
   if (/"isLiveNow":true/.test(liveHtml) || /"isLive":true/.test(liveHtml)) {
-    const videoId = liveHtml.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/)?.[1];
+    const videoId = liveHtml.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/)?.[1] ||
+                    liveHtml.match(/"videoId":"([\w-]{11})"/)?.[1];
     if (videoId) {
       const title = liveHtml.match(/<meta name="title" content="([^"]*)"/)?.[1];
       live = {
@@ -133,27 +235,29 @@ async function checkYoutube(username) {
     }
   }
 
-  // Último video subido: pestaña /videos del canal (el RSS de YouTube falla a menudo)
+  // Último video subido + metadata: pestaña /videos del canal
   let video = null;
-  let displayName = username;
   const page = await fetchText(`https://www.youtube.com/channel/${channelId}/videos`, ytConsent).catch(() => null);
   if (page) {
     const name = page.match(/<meta property="og:title" content="([^"]*)"/)?.[1];
     if (name) displayName = decodeXml(name);
+    avatar = page.match(/<meta property="og:image" content="([^"]*)"/)?.[1] || null;
+
     const id = page.match(/"contentId":"([\w-]{11})"/)?.[1] || page.match(/"videoRenderer":\{"videoId":"([\w-]{11})"/)?.[1];
     const rawTitle = page.match(/"lockupMetadataViewModel":\{"title":\{"content":"((?:[^"\\]|\\.)*)"/)?.[1];
     const title = rawTitle ? JSON.parse(`"${rawTitle}"`) : "Nuevo video";
     if (id) video = { id, title, url: `https://www.youtube.com/watch?v=${id}`, thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
   }
 
-  return { displayName, avatar: null, live, video };
+  return { displayName, avatar, live, video };
 }
 
-// ── TikTok (sin API oficial de directos: página del perfil) ─────────────────
+// ── TikTok (sin API oficial de directos: página del perfil + webcast check) ─
 async function checkTiktok(username) {
   let user = username.trim().replace(/^<|>$/g, "").replace(/^@/, "").replace(/[/?#].*$/, "");
   const res = await fetch(`https://www.tiktok.com/api-live/user/room/?aid=1988&sourceType=54&uniqueId=${encodeURIComponent(user)}`, {
-    headers: { "User-Agent": UA }
+    headers: { "User-Agent": UA },
+    signal: AbortSignal.timeout(8000)
   });
   if (!res.ok) throw new Error(`TikTok HTTP ${res.status}`);
   const json = await res.json();
@@ -165,14 +269,15 @@ async function checkTiktok(username) {
   // status 2 = en directo, 4 = sin directo
   if (room?.status === 2 || info?.status === 2) {
     live = {
-      id: String(info?.roomId || room?.startTime || Date.now()),
+      id: String(info?.roomId || room?.startTime || (room?.status === 2 ? "live" : Date.now())),
       title: room?.title || "En directo en TikTok",
-      category: null,
+      category: room?.gameTagId ? "Gaming" : null,
       viewers: room?.liveRoomStats?.userCount ?? null,
       thumbnail: room?.coverUrl || info?.avatarLarger || null,
       url: `https://www.tiktok.com/@${user}/live`
     };
   }
+
   return { displayName: info?.nickname || user, avatar: info?.avatarMedium || null, live };
 }
 
